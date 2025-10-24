@@ -1,10 +1,17 @@
-'use client';
+"use client";
 import React, { useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 
 function FormEntry({ stockData }) {
   const [items, setItems] = useState([
-    { id: uuidv4(), item: "", quantity: "", unit: "kg", Cprice: "", Sprice: "" },
+    {
+      id: uuidv4(),
+      item: "",
+      quantity: "",
+      unit: "kg",
+      Cprice: "",
+      Sprice: "",
+    },
   ]);
   const [date, setDate] = useState("");
   const [billno, setBillno] = useState("");
@@ -12,9 +19,20 @@ function FormEntry({ stockData }) {
   const [notes, setNotes] = useState("");
   const [paidCash, setPaidCash] = useState(0);
   const [paidOnline, setPaidOnline] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
 
   const addItem = () => {
-    setItems([...items, { id: uuidv4(), item: "", quantity: "", unit: "kg", Cprice: "", Sprice: "" }]);
+    setItems([
+      ...items,
+      {
+        id: uuidv4(),
+        item: "",
+        quantity: "",
+        unit: "kg",
+        Cprice: "",
+        Sprice: "",
+      },
+    ]);
   };
 
   const removeItem = (id) => {
@@ -22,40 +40,59 @@ function FormEntry({ stockData }) {
   };
 
   const handleItemChange = (id, field, value) => {
-    setItems(items.map((item) => (item.id === id ? { ...item, [field]: value } : item)));
+    setItems(
+      items.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+    );
   };
 
   const setcostPrice = (id, itemName) => {
-    const stockItem = stockData.find((stock) => stock.name === itemName.split(':')[0]);
+    const stockItem = stockData.find(
+      (stock) => stock.name === itemName.split(":")[0]
+    );
     if (stockItem) {
-      const costPrice = parseFloat(stockItem.price.$numberDecimal || stockItem.price);
+      const costPrice = parseFloat(
+        stockItem.price.$numberDecimal || stockItem.price
+      );
       setItems((prevItems) =>
-        prevItems.map((item) => (item.id === id ? { ...item, Cprice: costPrice } : item))
+        prevItems.map((item) =>
+          item.id === id ? { ...item, Cprice: costPrice } : item
+        )
       );
     } else {
       setItems((prevItems) =>
-        prevItems.map((item) => (item.id === id ? { ...item, Cprice: "" } : item))
+        prevItems.map((item) =>
+          item.id === id ? { ...item, Cprice: "" } : item
+        )
       );
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitting(true);
 
-    const formData = { date, billno, buyer, notes, paidCash, paidOnline, items };
+    const formData = {
+      date,
+      billno,
+      buyer,
+      notes,
+      paidCash,
+      paidOnline,
+      items,
+    };
     console.log("Form Data Submitted:", formData);
-    
+
     try {
       const res = await fetch("/api/expenses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
-      
+
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const result = await res.json();
       console.log("Server Response:", result);
-      
+
       // Reset form
       setDate("");
       setBillno("");
@@ -63,13 +100,26 @@ function FormEntry({ stockData }) {
       setNotes("");
       setPaidCash(0);
       setPaidOnline(0);
-      setItems([{ id: uuidv4(), item: "", quantity: "", unit: "kg", Cprice: "", Sprice: "" }]);
+      setItems([
+        {
+          id: uuidv4(),
+          item: "",
+          quantity: "",
+          unit: "kg",
+          Cprice: "",
+          Sprice: "",
+        },
+      ]);
       const item2 = items;
       try {
         for (const it of item2) {
-         const stockD = stockData.find((stock) => stock.name === it.item.split(':')[0]);
+          const stockD = stockData.find(
+            (stock) => stock.name === it.item.split(":")[0]
+          );
           if (stockD) {
-            const newQuantity = parseFloat(stockD.quantity.$numberDecimal || stockD.quantity) - parseFloat(it.quantity || 0);
+            const newQuantity =
+              parseFloat(stockD.quantity.$numberDecimal || stockD.quantity) -
+              parseFloat(it.quantity || 0);
             const updateData = {
               _id: stockD._id,
               name: stockD.name,
@@ -100,10 +150,15 @@ function FormEntry({ stockData }) {
     } catch (error) {
       console.error("Error submitting form:", error);
     }
+    setSubmitting(false);
   };
-  
+
   // Calculations for Payment Summary
-  const totalAmount = items.reduce((sum, item) => sum + (parseFloat(item.Sprice || 0) * parseFloat(item.quantity || 0)), 0);
+  const totalAmount = items.reduce(
+    (sum, item) =>
+      sum + parseFloat(item.Sprice || 0) * parseFloat(item.quantity || 0),
+    0
+  );
   const totalPaid = parseFloat(paidCash) + parseFloat(paidOnline);
   const pendingAmount = totalAmount.toFixed(0) - totalPaid;
 
@@ -119,25 +174,46 @@ function FormEntry({ stockData }) {
           <div className="bg-gray-100 p-4 sm:p-6 rounded-2xl border-2 border-black grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block mb-2 font-bold uppercase">Date</label>
-              <input type="date" className="border-2 p-3 rounded-xl w-full" value={date} onChange={(e) => setDate(e.target.value)} />
+              <input
+                type="date"
+                className="border-2 p-3 rounded-xl w-full"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
             </div>
             <div>
               <label className="block mb-2 font-bold uppercase">Bill No</label>
-              <input type="number" className="border-2 p-3 rounded-xl w-full" value={billno} onChange={(e) => setBillno(e.target.value)} />
+              <input
+                type="number"
+                className="border-2 p-3 rounded-xl w-full"
+                value={billno}
+                onChange={(e) => setBillno(e.target.value)}
+              />
             </div>
           </div>
 
           {/* Buyer */}
           <div>
             <label className="block mb-2 font-bold uppercase">Buyer</label>
-            <input type="text" className="border-2 p-3 rounded-xl w-full" value={buyer} onChange={(e) => setBuyer(e.target.value)} />
+            <input
+              type="text"
+              className="border-2 p-3 rounded-xl w-full"
+              value={buyer}
+              onChange={(e) => setBuyer(e.target.value)}
+            />
           </div>
 
           {/* Items */}
           <div className="bg-gray-100 p-4 sm:p-6 rounded-2xl border-2 border-black">
             <div className="flex justify-between items-center mb-4">
               <label className="text-xl font-bold uppercase">Items</label>
-              <button type="button" onClick={addItem} className="bg-black text-white px-4 py-2 rounded-xl">+ Add Item</button>
+              <button
+                type="button"
+                onClick={addItem}
+                className="bg-black text-white px-4 py-2 rounded-xl"
+              >
+                + Add Item
+              </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -145,35 +221,78 @@ function FormEntry({ stockData }) {
                 <div key={item.id} className="border-2 p-4 rounded-xl">
                   <div className="flex justify-between mb-2">
                     <span>Item #{idx + 1}</span>
-                    <button disabled={items.length === 1} type="button" onClick={() => removeItem(item.id)} className="text-red-600 disabled:text-gray-400">
+                    <button
+                      disabled={items.length === 1}
+                      type="button"
+                      onClick={() => removeItem(item.id)}
+                      className="text-red-600 disabled:text-gray-400"
+                    >
                       Remove
                     </button>
                   </div>
 
                   <label className="block mb-1 font-bold">Item Name</label>
-                  <select value={item.item} onChange={(e) => {
-                    handleItemChange(item.id, "item", e.target.value);
-                    setcostPrice(item.id, e.target.value);
-                  }} className="border-2 p-2 w-full rounded-xl">
+                  <select
+                    value={item.item}
+                    onChange={(e) => {
+                      handleItemChange(item.id, "item", e.target.value);
+                      setcostPrice(item.id, e.target.value);
+                    }}
+                    className="border-2 p-2 w-full rounded-xl"
+                  >
                     <option value="">Select Item</option>
                     {stockData.map((stockItem, idx) => (
-                      <option key={idx} value={stockItem.name}>{`${stockItem.name}: (${stockItem.quantity.$numberDecimal || stockItem.quantity} ${stockItem.unit})`}</option>
+                      <option key={idx} value={stockItem.name}>
+                        {`${stockItem.name}: (${Number(
+                          stockItem.quantity?.$numberDecimal ??
+                            stockItem.quantity
+                        ).toFixed(0)} ${stockItem.unit})`}
+                      </option>
                     ))}
                   </select>
 
                   <label className="block mt-2 mb-1 font-bold">Quantity</label>
                   <div className="flex gap-2">
-                    <input type="number" value={item.quantity} onChange={(e) => handleItemChange(item.id, "quantity", e.target.value)} className="border-2 p-2 rounded-xl w-2/3" />
-                    <select value={item.unit} onChange={(e) => handleItemChange(item.id, "unit", e.target.value)} className="border-2 p-2 rounded-xl w-1/3">
+                    <input
+                      type="number"
+                      value={item.quantity}
+                      onChange={(e) =>
+                        handleItemChange(item.id, "quantity", e.target.value)
+                      }
+                      className="border-2 p-2 rounded-xl w-2/3"
+                    />
+                    <select
+                      value={item.unit}
+                      onChange={(e) =>
+                        handleItemChange(item.id, "unit", e.target.value)
+                      }
+                      className="border-2 p-2 rounded-xl w-1/3"
+                    >
                       <option value="kg">kg</option>
                       <option value="m2">SqFeet</option>
                     </select>
                   </div>
 
-                  <label className="block mt-2 mb-1 font-bold">Selling Price</label>
-                  <input type="number" value={item.Sprice} onChange={(e) => handleItemChange(item.id, "Sprice", e.target.value)} className="border-2 p-2 rounded-xl w-full" />
-                  <label className="block mt-2 mb-1 font-bold">Item Total</label>
-                  <input disabled type="number" value={(item.Sprice * item.quantity).toFixed(0)}  className="bg-black text-white font-bold border-2 p-2 rounded-xl w-full" />
+                  <label className="block mt-2 mb-1 font-bold">
+                    Selling Price
+                  </label>
+                  <input
+                    type="number"
+                    value={item.Sprice}
+                    onChange={(e) =>
+                      handleItemChange(item.id, "Sprice", e.target.value)
+                    }
+                    className="border-2 p-2 rounded-xl w-full"
+                  />
+                  <label className="block mt-2 mb-1 font-bold">
+                    Item Total
+                  </label>
+                  <input
+                    disabled
+                    type="number"
+                    value={(item.Sprice * item.quantity).toFixed(0)}
+                    className="bg-black text-white font-bold border-2 p-2 rounded-xl w-full"
+                  />
                 </div>
               ))}
             </div>
@@ -190,25 +309,45 @@ function FormEntry({ stockData }) {
                 <label className="block text-xs sm:text-sm font-bold mb-2 uppercase tracking-wide text-gray-300">
                   Total Amount
                 </label>
-                <input disabled type="number"  className="border-2 border-white bg-white text-black w-full p-3 rounded-xl font-bold text-lg" value={totalAmount.toFixed(0)} />
+                <input
+                  disabled
+                  type="number"
+                  className="border-2 border-white bg-white text-black w-full p-3 rounded-xl font-bold text-lg"
+                  value={totalAmount.toFixed(0)}
+                />
               </div>
               <div>
                 <label className="block text-xs sm:text-sm font-bold mb-2 uppercase tracking-wide text-gray-300">
                   Total Paid
                 </label>
-                <input disabled type="number" className="border-2 border-white bg-white text-black w-full p-3 rounded-xl font-bold text-lg" value={totalPaid.toFixed(0)} />
+                <input
+                  disabled
+                  type="number"
+                  className="border-2 border-white bg-white text-black w-full p-3 rounded-xl font-bold text-lg"
+                  value={totalPaid.toFixed(0)}
+                />
               </div>
               <div>
                 <label className="block text-xs sm:text-sm font-bold mb-2 uppercase tracking-wide text-gray-300">
                   Paid Online
                 </label>
-                <input type="number" className="border-2 border-white bg-white text-black w-full p-3 rounded-xl font-bold text-lg" value={paidOnline.toFixed(0)} onChange={(e) => setPaidOnline(parseFloat(e.target.value))} />
+                <input
+                  type="number"
+                  className="border-2 border-white bg-white text-black w-full p-3 rounded-xl font-bold text-lg"
+                  value={paidOnline.toFixed(0)}
+                  onChange={(e) => setPaidOnline(parseFloat(e.target.value))}
+                />
               </div>
               <div>
                 <label className="block text-xs sm:text-sm font-bold mb-2 uppercase tracking-wide text-gray-300">
                   Paid Cash
                 </label>
-                <input type="number" className="border-2 border-white bg-white text-black w-full p-3 rounded-xl font-bold text-lg" value={paidCash.toFixed(0)} onChange={(e) => setPaidCash(parseFloat(e.target.value))} />
+                <input
+                  type="number"
+                  className="border-2 border-white bg-white text-black w-full p-3 rounded-xl font-bold text-lg"
+                  value={paidCash.toFixed(0)}
+                  onChange={(e) => setPaidCash(parseFloat(e.target.value))}
+                />
               </div>
             </div>
 
@@ -216,17 +355,34 @@ function FormEntry({ stockData }) {
               <label className="block text-xs sm:text-sm font-bold mb-2 uppercase tracking-wide text-gray-300">
                 Pending Amount
               </label>
-              <input disabled type="number" className="border-2 border-white bg-white text-black w-full p-4 rounded-xl font-bold text-2xl" value={pendingAmount.toFixed(0)} />
+              <input
+                disabled
+                type="number"
+                className="border-2 border-white bg-white text-black w-full p-4 rounded-xl font-bold text-2xl"
+                value={pendingAmount.toFixed(0)}
+              />
             </div>
           </div>
 
           {/* Notes */}
           <div>
             <label className="block mb-2 font-bold uppercase">Notes</label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="border-2 p-3 rounded-xl w-full" rows={4} />
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="border-2 p-3 rounded-xl w-full"
+              rows={4}
+            />
           </div>
 
-          <button type="submit" className="bg-black text-white py-3 px-6 rounded-xl w-full sm:w-auto">Submit Form</button>
+          <button
+            type="submit"
+            className={`bg-black text-white py-3 px-6 rounded-xl w-full sm:w-auto ${
+              submitting ? "hidden" : "block"
+            } `}
+          >
+            Submit Form
+          </button>
         </form>
       </div>
     </div>

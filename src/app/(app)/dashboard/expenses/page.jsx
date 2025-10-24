@@ -236,6 +236,13 @@ function Page() {
                       </motion.div>
                     </div>
                   </button>
+                  <div>{items[0].notes &&
+                    
+                    <div className="p-4 sm:p-6 border-b-2 border-black flex flex-wrap gap-4 justify-center sm:justify-start text-red-600 font-bold bg-black">
+                      {items[0].notes}
+                      </div>
+                    }
+                  </div>
 
                   {/* Collapsible Items Grid */}
                   <AnimatePresence>

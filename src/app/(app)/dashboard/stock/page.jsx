@@ -256,7 +256,7 @@ function StockPage() {
                             {item.category}
                           </span>
                           <span className="bg-gray-800 text-white px-2 py-1 rounded-full">
-                            {toNumber(item.quantity)} {item.unit}
+                            {toNumber(item.quantity).toFixed(0)} {item.unit}
                           </span>
                         </div>
                       </div>

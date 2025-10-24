@@ -173,7 +173,7 @@ function FormEntry({ stockData }) {
                   <label className="block mt-2 mb-1 font-bold">Selling Price</label>
                   <input type="number" value={item.Sprice} onChange={(e) => handleItemChange(item.id, "Sprice", e.target.value)} className="border-2 p-2 rounded-xl w-full" />
                   <label className="block mt-2 mb-1 font-bold">Item Total</label>
-                  <input disabled type="number" value={item.Sprice * item.quantity}  className="bg-black text-white font-bold border-2 p-2 rounded-xl w-full" />
+                  <input disabled type="number" value={(item.Sprice * item.quantity).toFixed(0)}  className="bg-black text-white font-bold border-2 p-2 rounded-xl w-full" />
                 </div>
               ))}
             </div>

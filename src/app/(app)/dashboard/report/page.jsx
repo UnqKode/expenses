@@ -40,7 +40,7 @@ function ReportsPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [datePreset, setDatePreset] = useState("month");
+  const [datePreset, setDatePreset] = useState("year");
 
   useEffect(() => {
     const fetchData = async () => {

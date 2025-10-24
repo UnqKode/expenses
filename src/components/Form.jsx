@@ -10,8 +10,8 @@ function FormEntry({ stockData }) {
   const [billno, setBillno] = useState("");
   const [buyer, setBuyer] = useState("");
   const [notes, setNotes] = useState("");
-  const [paidCash, setPaidCash] = useState();
-  const [paidOnline, setPaidOnline] = useState();
+  const [paidCash, setPaidCash] = useState(0);
+  const [paidOnline, setPaidOnline] = useState(0);
 
   const addItem = () => {
     setItems([...items, { id: uuidv4(), item: "", quantity: "", unit: "kg", Cprice: "", Sprice: "" }]);

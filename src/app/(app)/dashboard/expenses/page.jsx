@@ -4,9 +4,9 @@ import React, { use, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Form from "../../../../components/Form";
 import { set } from "mongoose";
+import ExpenseEditForm from "../../../../components/ExpenseEditForm";
 
 function Page() {
-  const [formData, setFormData] = useState({});
   const [showAddEntry, setShowAddEntry] = useState(false);
   const [stockData, setStockData] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -14,8 +14,15 @@ function Page() {
   const [expandedBills, setExpandedBills] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [edit, setEdit] = useState(false);
+  const [editData, setEditData] = useState([]);
 
-  const toggleForm = () => setShowAddEntry((prev) => !prev);
+  const toggleForm = () => {
+    if (!edit) {
+      setShowAddEntry((prev) => !prev);
+    }
+    setEdit(false);
+  };
   const toggleBill = (billno) => {
     setExpandedBills((prev) => ({
       ...prev,
@@ -79,6 +86,101 @@ function Page() {
   // Helper to parse Decimal128
   const toNumber = (decimal) => parseFloat(decimal?.$numberDecimal || 0);
 
+  const handledeleteExpense = async (billno) => {
+    setLoading(true);
+    try {
+      // Find all transactions for this bill
+      const billItems = transactions.filter((tx) => tx.billno === billno);
+
+      // Delete the expense from backend
+      const res = await fetch("/api/deleteExpense", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ billno }),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Server error (${res.status}): ${errorText}`);
+      }
+
+      const deletedData = await res.json();
+      console.log("Expense deleted successfully:", deletedData);
+
+      // Update stock quantities: revert stock by adding back sold quantities
+      console.log(billItems);
+      for (const item of billItems) {
+        const stockItem = stockData.find(
+          (stock) => stock.name === item.item.split(":")[0]
+        );
+        console.log(stockItem);
+        if (stockItem) {
+          const currentQuantity =
+            parseFloat(
+              stockItem.quantity?.$numberDecimal ?? stockItem.quantity ?? 0
+            ) + parseFloat(item.quantity?.$numberDecimal ?? item.quantity ?? 0);
+
+          const updateData = {
+            _id: stockItem._id,
+            name: stockItem.name,
+            category: stockItem.category,
+            quantity: currentQuantity,
+            unit: stockItem.unit,
+            price: parseFloat(
+              stockItem.price?.$numberDecimal ?? stockItem.price ?? 0
+            ),
+            supplier: stockItem.supplier,
+          };
+
+          console.log(updateData);
+
+          try {
+            const res2 = await fetch("/api/getstock/one", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(updateData),
+            });
+
+            if (!res2.ok) {
+              const errorText = await res2.text();
+              throw new Error(`Server error (${res2.status}): ${errorText}`);
+            }
+
+            const updatedStock = await res2.json();
+            console.log("Stock updated successfully:", updatedStock);
+          } catch (err) {
+            console.error("Error updating stock:", err);
+          }
+        }
+      }
+
+      // Refresh transactions in state
+      setTransactions((prev) => prev.filter((tx) => tx.billno !== billno));
+    } catch (error) {
+      console.error("Error deleting expense:", error);
+    }
+    setLoading(false);
+  };
+
+  const handleExpenseEdit = (billno) => {
+    const editData2 = transactions.filter((tx) => tx.billno === billno);
+    setEditData(editData2);
+    setEdit(true);
+    console.log("Expense Edit:", billno);
+    const itemsToEdit = transactions.filter((item) => item.billno === billno);
+    console.log("Form Data for Edit:", { items: itemsToEdit });
+  };
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-gray-100 z-50">
+        <div className="text-xl font-bold text-gray-700 animate-pulse">
+          Loading...
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-gray-50 min-h-screen py-6 px-4 sm:px-6 lg:px-8 flex flex-col">
       <div className="max-w-7xl mx-auto w-full flex-1">
@@ -110,7 +212,8 @@ function Page() {
             whileTap={{ scale: 0.95 }}
             transition={{ type: "spring", stiffness: 300 }}
           >
-            {showAddEntry ? "✕ Close Form" : "+ Add Entry"}
+            {!edit ? (showAddEntry ? "✕ Close Form" : "+ Add Entry") : ""}
+            {edit ? "✕ Close Form" : ""}
           </motion.button>
         </motion.div>
 
@@ -126,6 +229,22 @@ function Page() {
               className="flex justify-center overflow-hidden"
             >
               <Form stockData={stockData} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ---------- EDIT FORM SECTION ---------- */}
+        <AnimatePresence mode="wait">
+          {edit && (
+            <motion.div
+              key="form"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto", marginBottom: 48 }}
+              exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+              transition={{ duration: 0.4, ease: "easeInOut" }}
+              className="flex justify-center overflow-hidden"
+            >
+              <ExpenseEditForm stockData={stockData} ExpenseData={editData} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -154,7 +273,20 @@ function Page() {
 
             <div className="p-4 sm:p-6 space-y-6  overflow-y-auto h-screen">
               {loading && (
-                <div className="text-center text-gray-500">Loading...</div>
+                <div className="flex justify-center items-center py-8 space-x-2 flex-col">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                    <div
+                      className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"
+                      style={{ animationDelay: "0.2s" }}
+                    ></div>
+                    <div
+                      className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"
+                      style={{ animationDelay: "0.4s" }}
+                    ></div>
+                  </div>
+                  <span className="text-gray-500 text-2xl">Loading...</span>
+                </div>
               )}
               {Object.entries(filteredGrouped).map(([billno, items], index) => (
                 <motion.div
@@ -169,15 +301,17 @@ function Page() {
                     className={`w-full text-white px-4 sm:px-6 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-2 transition-colors`}
                     style={{
                       background: `linear-gradient(to right, black,black, ${
-                        (items.reduce(
-                          (acc, item) =>
-                            acc +
-                            Number(item.sellingPrice.$numberDecimal) *
-                              Number(item.quantity.$numberDecimal),
-                          0
-                        ).toFixed(2) -
+                        items
+                          .reduce(
+                            (acc, item) =>
+                              acc +
+                              Number(item.sellingPrice.$numberDecimal) *
+                                Number(item.quantity.$numberDecimal),
+                            0
+                          )
+                          .toFixed(2) -
                           (Number(items[0].paidCash.$numberDecimal || 0) +
-                            Number(items[0].paidOnline.$numberDecimal || 0))) <
+                            Number(items[0].paidOnline.$numberDecimal || 0)) <
                         1
                           ? "green"
                           : "red"
@@ -219,7 +353,8 @@ function Page() {
                                 toNumber(item.sellingPrice) *
                                   toNumber(item.quantity),
                               0
-                            ).toFixed(0)
+                            )
+                            .toFixed(0)
                             .toLocaleString()}
                         </div>
 
@@ -236,12 +371,12 @@ function Page() {
                       </motion.div>
                     </div>
                   </button>
-                  <div>{items[0].notes &&
-                    
-                    <div className="p-4 sm:p-6 border-b-2 border-black flex flex-wrap gap-4 justify-center sm:justify-start text-red-600 font-bold bg-black">
-                      {items[0].notes}
+                  <div>
+                    {items[0].notes && (
+                      <div className="p-4 sm:p-6 border-b-2 border-black flex flex-wrap gap-4 justify-center sm:justify-start text-red-600 font-bold bg-black">
+                        {items[0].notes}
                       </div>
-                    }
+                    )}
                   </div>
 
                   {/* Collapsible Items Grid */}
@@ -316,8 +451,9 @@ function Page() {
                                   <span className="font-bold text-amber-600">
                                     ₹
                                     {(
-                                      (toNumber(item.sellingPrice) *
-                                      toNumber(item.quantity)).toFixed(2))}
+                                      toNumber(item.sellingPrice) *
+                                      toNumber(item.quantity)
+                                    ).toFixed(2)}
                                   </span>
                                 </div>
                                 <div className="pt-2">
@@ -337,21 +473,23 @@ function Page() {
                                   </span>
                                 </div>
                               </div>
-                              
                             </div>
                           ))}
                         </div>
-                         <div className="text-sm sm:text-base font-medium text-gray-600 flex justify-between px-4 sm:px-6 py-3 sm:py-4  ">
-                                <button
-                                  className="text-xl text-blue-500"
-                                  onClick={() => handleStockEdit(item.id)}
-                                >
-                                  Edit
-                                </button>
-                                <button className="text-xl text-red-500" onClick={() => handledelete(item._id)}>
-                                  Delete
-                                </button>
-                              </div>
+                        <div className="text-sm sm:text-base font-medium text-gray-600 flex justify-between px-4 sm:px-6 py-3 sm:py-4  ">
+                          <button
+                            className="text-xl text-blue-500"
+                            onClick={() => handleExpenseEdit(items[0].billno)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="text-xl text-red-500"
+                            onClick={() => handledeleteExpense(items[0].billno)}
+                          >
+                            Delete
+                          </button>
+                        </div>
                         <div className="flex gap-1 mt-1 text-xs sm:text-sm text-white flex-col sm:flex-row sm:items-center justify-center sm:justify-end bg-linear-to-br from-black via-black to-blue-500 px-4 py-3 border-t-2 border-black">
                           {/* PAID */}
                           <span className="font-bold text-lg sm:text-xl flex justify-between items-center w-full sm:w-auto">
@@ -359,12 +497,12 @@ function Page() {
                             <div className="text-green-500">
                               ₹
                               {items.length > 0
-                                ? (Number(
+                                ? Number(
                                     items[0].paidCash.$numberDecimal || 0
                                   ) +
                                   Number(
                                     items[0].paidOnline.$numberDecimal || 0
-                                  ))
+                                  )
                                 : 0}
                             </div>
                           </span>
@@ -375,24 +513,28 @@ function Page() {
                             <div className="text-red-500">
                               ₹
                               {items.length > 0
-                                ? (items.reduce(
-                                    (acc, item) =>
-                                      acc +
-                                      Number(item.sellingPrice.$numberDecimal) *
-                                        Number(item.quantity.$numberDecimal),
-                                    0
-                                  ).toFixed(0) -
-                                  (Number(
-                                    items[0].paidCash.$numberDecimal || 0
-                                  ) +
+                                ? items
+                                    .reduce(
+                                      (acc, item) =>
+                                        acc +
+                                        Number(
+                                          item.sellingPrice.$numberDecimal
+                                        ) *
+                                          Number(item.quantity.$numberDecimal),
+                                      0
+                                    )
+                                    .toFixed(0) -
+                                  (
+                                    Number(
+                                      items[0].paidCash.$numberDecimal || 0
+                                    ) +
                                     Number(
                                       items[0].paidOnline.$numberDecimal || 0
                                     )
-                                  ).toFixed(0))
+                                  ).toFixed(0)
                                 : 0}
                             </div>
                           </span>
-                           
                         </div>
                       </motion.div>
                     )}

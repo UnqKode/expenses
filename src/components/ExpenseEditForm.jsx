@@ -1,89 +1,45 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 
-function FormEntry({ stockData }) {
-  const [items, setItems] = useState([
-    {
-      id: uuidv4(),
-      item: "",
-      quantity: "",
-      unit: "kg",
-      Cprice: "",
-      Sprice: "",
-    },
-  ]);
-  const [date, setDate] = useState("");
-  const [billno, setBillno] = useState("");
-  const [buyer, setBuyer] = useState("");
-  const [notes, setNotes] = useState("");
-  const [paidCash, setPaidCash] = useState(0);
-  const [paidOnline, setPaidOnline] = useState(0);
+function FormEntry({ stockData, ExpenseData }) {
+  const [items, setItems] = useState([]);
+  const [orignalData, setOriginalData] = useState([]);
+  const [date, setDate] = useState(ExpenseData[0]?.date?.slice(0, 10) || "");
+  const [billno, setBillno] = useState(ExpenseData[0]?.billno || "");
+  const [buyer, setBuyer] = useState(ExpenseData[0]?.buyer || "");
+  const [notes, setNotes] = useState(ExpenseData[0]?.notes || "");
+  const [paidCash, setPaidCash] = useState(
+    ExpenseData[0]?.paidCash?.$numberDecimal || 0
+  );
+  const [paidOnline, setPaidOnline] = useState(
+    ExpenseData[0]?.paidOnline?.$numberDecimal || 0
+  );
   const [submitting, setSubmitting] = useState(false);
 
-  const addItem = () => {
-    setItems([
-      ...items,
-      {
-        id: uuidv4(),
-        item: "",
-        quantity: "",
-        unit: "kg",
-        Cprice: "",
-        Sprice: "",
-      },
-    ]);
-  };
+  useEffect(() => {
+    // Store both original and current data
+    const normalizedData = ExpenseData.map((item) => ({
+      ...item,
+      quantity: parseFloat(item.quantity?.$numberDecimal ?? item.quantity ?? 0),
+      sellingPrice: parseFloat(
+        item.sellingPrice?.$numberDecimal ?? item.sellingPrice ?? 0
+      ),
+    }));
 
-  const removeItem = (id) => {
-    setItems(items.filter((item) => item.id !== id));
-  };
-
-  const handleItemChange = (id, field, value) => {
-    setItems(
-      items.map((item) => (item.id === id ? { ...item, [field]: value } : item))
-    );
-  };
-
-  const setcostPrice = (id, itemName) => {
-    const stockItem = stockData.find(
-      (stock) => stock.name === itemName.split(":")[0]
-    );
-    if (stockItem) {
-      const costPrice = parseFloat(
-        stockItem.price.$numberDecimal || stockItem.price
-      );
-      setItems((prevItems) =>
-        prevItems.map((item) =>
-          item.id === id ? { ...item, Cprice: costPrice } : item
-        )
-      );
-    } else {
-      setItems((prevItems) =>
-        prevItems.map((item) =>
-          item.id === id ? { ...item, Cprice: "" } : item
-        )
-      );
-    }
-  };
+    setOriginalData(normalizedData);
+    setItems(ExpenseData);
+  }, [ExpenseData]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
 
-    const formData = {
-      date,
-      billno,
-      buyer,
-      notes,
-      paidCash,
-      paidOnline,
-      items,
-    };
+    const formData = items;
     console.log("Form Data Submitted:", formData);
 
     try {
-      const res = await fetch("/api/expenses", {
+      const res = await fetch("/api/updateExpenses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -93,48 +49,63 @@ function FormEntry({ stockData }) {
       const result = await res.json();
       console.log("Server Response:", result);
 
-      // Store items before resetting
-      const itemsToUpdate = [...items];
-
       // Update stock quantities
+      const item2 = items;
+      let i = 0; // Move counter outside the loop
       try {
-        for (const it of itemsToUpdate) {
+        for (const it of item2) {
           const stockD = stockData.find(
             (stock) => stock.name === it.item.split(":")[0]
           );
-          if (stockD) {
-            const newQuantity =
-              parseFloat(stockD.quantity.$numberDecimal || stockD.quantity) -
-              parseFloat(it.quantity || 0);
+          if (stockD && ExpenseData[i]) {
+            console.log(orignalData);
+            const currentQuantity = parseFloat(
+              it.quantity?.$numberDecimal ?? it.quantity ?? 0
+            );
+            const oldQuantity = parseFloat(
+              orignalData[i].quantity?.$numberDecimal ?? orignalData[i].quantity ?? 0
+            );
+            const stockQuantity = parseFloat(
+              stockD.quantity?.$numberDecimal ?? stockD.quantity ?? 0
+            );
+            console.log(currentQuantity, oldQuantity, stockQuantity);
+            const newQuantity = stockQuantity - (currentQuantity - oldQuantity);
+            console.log(newQuantity);
             const updateData = {
               _id: stockD._id,
               name: stockD.name,
               category: stockD.category,
               quantity: newQuantity,
               unit: stockD.unit,
-              price: parseFloat(stockD.price.$numberDecimal || stockD.price),
+              price: parseFloat(
+                stockD.price?.$numberDecimal ?? stockD.price ?? 0
+              ),
               supplier: stockD.supplier,
             };
+
             const res2 = await fetch("/api/getstock/one", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(updateData),
             });
+
             if (!res2.ok) {
               const errorText = await res2.text();
               throw new Error(`Server error (${res2.status}): ${errorText}`);
             }
+
             const data2 = await res2.json();
             console.log("Stock updated successfully:", data2);
           } else {
             console.warn(`Stock item not found for: ${it.item}`);
           }
+          i++; // Increment counter
         }
       } catch (error) {
         console.error("Error updating stock quantities:", error);
       }
 
-      // Reset form AFTER stock update
+      // Reset form
       setDate("");
       setBillno("");
       setBuyer("");
@@ -157,14 +128,60 @@ function FormEntry({ stockData }) {
     setSubmitting(false);
   };
 
-  // Calculations for Payment Summary - FIXED
+  const handleItemChange = (id, field, value) => {
+    setItems((prevItems) =>
+      prevItems.map((item) =>
+        item._id === id ? { ...item, [field]: value } : item
+      )
+    );
+  };
+
+  const handlePriceChange = (field, value) => {
+    setItems((prevItems) =>
+      prevItems.map((item) => {
+        const newItem = { ...item };
+
+        if (newItem[field]?.$numberDecimal !== undefined) {
+          newItem[field].$numberDecimal = value;
+        } else {
+          newItem[field] = value;
+        }
+
+        return newItem;
+      })
+    );
+  };
+
+  const handleQuantityChange = (id, value) => {
+    setItems((prevItems) =>
+      prevItems.map((item) => {
+        if (item._id === id) {
+          const newItem = { ...item };
+          if (newItem.quantity?.$numberDecimal !== undefined) {
+            newItem.quantity.$numberDecimal = value;
+          } else {
+            newItem.quantity = value;
+          }
+          return newItem;
+        }
+        return item;
+      })
+    );
+  };
+
+  // Calculations for Payment Summary
   const totalAmount = items.reduce(
     (sum, item) =>
-      sum + (parseFloat(item.Sprice) || 0) * (parseFloat(item.quantity) || 0),
+      sum +
+      parseFloat(
+        (item.sellingPrice?.$numberDecimal ?? item.sellingPrice) || 0
+      ) *
+        parseFloat((item.quantity?.$numberDecimal ?? item.quantity) || 0),
     0
   );
-  const totalPaid = (parseFloat(paidCash) || 0) + (parseFloat(paidOnline) || 0);
-  const pendingAmount = totalAmount - totalPaid; // Fixed: Don't use toFixed here
+
+  const totalPaid = parseFloat(paidCash) + parseFloat(paidOnline);
+  const pendingAmount = totalAmount - totalPaid;
 
   return (
     <div className="absolute min-h-screen max-w-7xl p-4 sm:p-6 lg:p-10 overflow-y-auto">
@@ -188,6 +205,7 @@ function FormEntry({ stockData }) {
             <div>
               <label className="block mb-2 font-bold uppercase">Bill No</label>
               <input
+                disabled
                 type="number"
                 className="border-2 p-3 rounded-xl w-full"
                 value={billno}
@@ -209,40 +227,23 @@ function FormEntry({ stockData }) {
 
           {/* Items */}
           <div className="bg-gray-100 p-4 sm:p-6 rounded-2xl border-2 border-black">
-            <div className="flex justify-between items-center mb-4">
-              <label className="text-xl font-bold uppercase">Items</label>
-              <button
-                type="button"
-                onClick={addItem}
-                className="bg-black text-white px-4 py-2 rounded-xl hover:bg-gray-800 transition-colors"
-              >
-                + Add Item
-              </button>
-            </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {items.map((item, idx) => (
-                <div key={item.id} className="border-2 p-4 rounded-xl bg-white">
+                <div
+                  key={item.id || item._id}
+                  className="border-2 p-4 rounded-xl bg-white"
+                >
                   <div className="flex justify-between mb-2">
                     <span className="font-bold">Item #{idx + 1}</span>
-                    <button
-                      disabled={items.length === 1}
-                      type="button"
-                      onClick={() => removeItem(item.id)}
-                      className="text-red-600 disabled:text-gray-400 font-bold hover:text-red-800 transition-colors"
-                    >
-                      Remove
-                    </button>
                   </div>
 
                   <label className="block mb-1 font-bold">Item Name</label>
                   <select
                     value={item.item}
-                    onChange={(e) => {
-                      handleItemChange(item.id, "item", e.target.value);
-                      setcostPrice(item.id, e.target.value);
-                    }}
                     className="border-2 p-2 w-full rounded-xl"
+                    onChange={(e) =>
+                      handleItemChange(item._id, "item", e.target.value)
+                    }
                   >
                     <option value="">Select Item</option>
                     {stockData.map((stockItem, idx) => (
@@ -259,19 +260,20 @@ function FormEntry({ stockData }) {
                   <div className="flex gap-2">
                     <input
                       type="number"
-                      value={item.quantity}
-                      onChange={(e) =>
-                        handleItemChange(item.id, "quantity", e.target.value)
+                      value={
+                        item.quantity?.$numberDecimal ?? item.quantity ?? ""
                       }
                       className="border-2 p-2 rounded-xl w-2/3"
-                      step="0.01"
+                      onChange={(e) =>
+                        handleQuantityChange(item._id, e.target.value)
+                      }
                     />
                     <select
                       value={item.unit}
-                      onChange={(e) =>
-                        handleItemChange(item.id, "unit", e.target.value)
-                      }
                       className="border-2 p-2 rounded-xl w-1/3"
+                      onChange={(e) =>
+                        handleItemChange(item._id, "unit", e.target.value)
+                      }
                     >
                       <option value="kg">kg</option>
                       <option value="m2">SqFeet</option>
@@ -283,12 +285,15 @@ function FormEntry({ stockData }) {
                   </label>
                   <input
                     type="number"
-                    value={item.Sprice}
-                    onChange={(e) =>
-                      handleItemChange(item.id, "Sprice", e.target.value)
+                    value={
+                      item.sellingPrice?.$numberDecimal ??
+                      item.sellingPrice ??
+                      ""
                     }
                     className="border-2 p-2 rounded-xl w-full"
-                    step="0.01"
+                    onChange={(e) =>
+                      handleItemChange(item._id, "sellingPrice", e.target.value)
+                    }
                   />
                   <label className="block mt-2 mb-1 font-bold">
                     Item Total
@@ -297,8 +302,12 @@ function FormEntry({ stockData }) {
                     disabled
                     type="number"
                     value={(
-                      (parseFloat(item.Sprice) || 0) *
-                      (parseFloat(item.quantity) || 0)
+                      (parseFloat(
+                        item.sellingPrice?.$numberDecimal ?? item.sellingPrice
+                      ) || 0) *
+                      (parseFloat(
+                        item.quantity?.$numberDecimal ?? item.quantity
+                      ) || 0)
                     ).toFixed(0)}
                     className="bg-black text-white font-bold border-2 p-2 rounded-xl w-full"
                   />
@@ -343,11 +352,13 @@ function FormEntry({ stockData }) {
                 <input
                   type="number"
                   className="border-2 border-white bg-white text-black w-full p-3 rounded-xl font-bold text-lg"
-                  value={paidOnline || ""}
-                  onChange={(e) =>
-                    setPaidOnline(parseFloat(e.target.value) || 0)
-                  }
-                  step="0.01"
+                  value={Number(
+                    paidOnline?.$numberDecimal ?? paidOnline
+                  ).toFixed(0)}
+                  onChange={(e) => {
+                    setPaidOnline(parseFloat(e.target.value) || 0);
+                    handlePriceChange("paidOnline", e.target.value);
+                  }}
                 />
               </div>
               <div>
@@ -357,9 +368,13 @@ function FormEntry({ stockData }) {
                 <input
                   type="number"
                   className="border-2 border-white bg-white text-black w-full p-3 rounded-xl font-bold text-lg"
-                  value={paidCash || ""}
-                  onChange={(e) => setPaidCash(parseFloat(e.target.value) || 0)}
-                  step="0.01"
+                  value={Number(paidCash?.$numberDecimal ?? paidCash).toFixed(
+                    0
+                  )}
+                  onChange={(e) => {
+                    setPaidCash(parseFloat(e.target.value) || 0);
+                    handlePriceChange("paidCash", e.target.value);
+                  }}
                 />
               </div>
             </div>

@@ -299,7 +299,7 @@ function StockPage() {
                               </div>
                               <div className="text-lg sm:text-xl font-bold text-black">
                                 ₹
-                                {toNumber(item.quantity) * toNumber(item.price)}
+                                {(toNumber(item.quantity) * toNumber(item.price)).toFixed(0)}
                               </div>
                             </div>
 

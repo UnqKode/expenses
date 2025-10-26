@@ -31,6 +31,7 @@ import {
   BarChart3,
   Activity,
   Target,
+  BoxIcon,
 } from "lucide-react";
 
 function ReportsPage() {
@@ -247,6 +248,38 @@ function ReportsPage() {
         ...data,
       }));
 
+    // Item-wise statistics
+    const itemStats = filteredTransactions.reduce((acc, tx) => {
+      const item = tx.item || "Unknown";
+      if (!acc[item]) {
+        acc[item] = {
+          quantity: 0,
+          revenue: 0,
+          investment: 0,
+          profit: 0,
+        };
+      }
+      acc[item].quantity += toNumber(tx.quantity);
+      acc[item].revenue += toNumber(tx.sellingPrice) * toNumber(tx.quantity);
+      acc[item].investment += toNumber(tx.costPrice) * toNumber(tx.quantity);
+      acc[item].profit +=
+        (toNumber(tx.sellingPrice) - toNumber(tx.costPrice)) *
+        toNumber(tx.quantity);
+      return acc;
+    }, {});
+
+    const itemData = Object.entries(itemStats)
+      .sort(([, a], [, b]) => b.revenue - a.revenue)
+      .map(([item, data]) => ({
+        item,
+        quantity: data.quantity,
+        revenue: data.revenue,
+        investment: data.investment,
+        profit: data.profit,
+        avgPrice: data.revenue / (data.quantity || 1),
+        profitMargin: data.revenue > 0 ? (data.profit / data.revenue) * 100 : 0,
+      }));
+
     return {
       totalRevenue,
       totalInvestment,
@@ -260,6 +293,7 @@ function ReportsPage() {
       paymentData,
       topBuyers,
       dailyChartData,
+      itemData,
     };
   };
 
@@ -281,6 +315,7 @@ function ReportsPage() {
     { id: "buyers", label: "Top Buyers", icon: Users },
     { id: "payments", label: "Payments", icon: CreditCard },
     { id: "daily", label: "Daily", icon: Calendar },
+    { id: "items", label: "Items", icon: BoxIcon },
   ];
 
   if (isLoading) {
@@ -846,6 +881,93 @@ function ReportsPage() {
                   />
                 </LineChart>
               </ResponsiveContainer>
+            </div>
+          </motion.div>
+        )}
+
+        {selectedReport === "items" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="space-y-8"
+          >
+            <div className="bg-white border-2 border-black rounded-2xl p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+              <h2 className="text-2xl text-black font-black uppercase mb-6 border-b-2 border-black pb-4 flex items-center gap-3">
+                <Target className="w-6 h-6" />
+                ITEM-WISE REPORT
+              </h2>
+
+               <div className="overflow-x-auto">
+                <table className="min-w-full border-2 border-black">
+                  <thead className="bg-black text-white">
+                    <tr>
+                      {[
+                        "Item",
+                        "Qty Sold",
+                        "Revenue (₹)",
+                        "Investment (₹)",
+                        "Profit (₹)",
+                        "Avg Price (₹)",
+                        "Profit Margin (%)",
+                      ].map((col) => (
+                        <th
+                          key={col}
+                          className="px-4 py-3 text-left text-xs font-black uppercase border-r-2 border-white"
+                        >
+                          {col}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {metrics.itemData.map((row, index) => (
+                      <tr
+                        key={index}
+                        className={`border-b-2 border-black ${
+                          index % 2 === 0 ? "bg-gray-50" : "bg-white"
+                        }`}
+                      >
+                        <td className="px-4 py-3 font-bold">{row.item}</td>
+                        <td className="px-4 py-3">{row.quantity.toFixed(0)}</td>
+                        <td className="px-4 py-3">{row.revenue.toFixed(0)}</td>
+                        <td className="px-4 py-3">
+                          {row.investment.toFixed(0)}
+                        </td>
+                        <td className="px-4 py-3 text-green-700 font-semibold">
+                          {row.profit.toFixed(0)}
+                        </td>
+                        <td className="px-4 py-3">{row.avgPrice.toFixed(0)}</td>
+                        <td className="px-4 py-3">
+                          {row.profitMargin.toFixed(1)}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+             
+              <div className="mt-10">
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={metrics.itemData.slice(0, 10)}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E5E5" />
+                    <XAxis
+                      dataKey="item"
+                      stroke="#000000"
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                    />
+                    <YAxis stroke="#000000" />
+                    <Tooltip content={<CustomTooltip />} />
+                    <RechartsBar
+                      dataKey="profit"
+                      fill="#000000"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </motion.div>
         )}

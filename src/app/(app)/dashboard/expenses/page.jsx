@@ -16,6 +16,29 @@ function Page() {
   const [loading, setLoading] = useState(true);
   const [edit, setEdit] = useState(false);
   const [editData, setEditData] = useState([]);
+  const [pendingTransaction, setPendingTransaction] = useState(false);
+  const [noteTransaction, setNotesTransaction] = useState(false);
+
+  const filterPending = () => {
+    const grouped = transactions.reduce((acc, tx) => {
+      if (!acc[tx.billno]) acc[tx.billno] = [];
+      acc[tx.billno].push(tx);
+      return acc;
+    }, {});
+
+    const pendingBills = Object.entries(grouped).filter(([billno, items]) => {
+      const total = items.reduce(
+        (sum, tx) =>
+          sum + toNumber(tx.quantity) * toNumber(tx.sellingPrice || tx.rate),
+        0
+      );
+      const paid = toNumber(items[0].paidCash) + toNumber(items[0].paidOnline);
+      return total - paid >1; // pending if unpaid balance exists
+    });
+
+    setGroupedTransactions(Object.fromEntries(pendingBills));
+    console.log("Pending Bills:", pendingBills);
+  };
 
   const toggleForm = () => {
     if (!edit) {
@@ -57,17 +80,17 @@ function Page() {
   }, []);
 
   useEffect(() => {
-    if (!transactions || transactions.length === 0) return;
-
-    const grouped = transactions.reduce((acc, tx) => {
-      if (!acc[tx.billno]) acc[tx.billno] = [];
-      acc[tx.billno].push(tx);
-      return acc;
-    }, {});
-
-    setGroupedTransactions(grouped);
-    console.log("Grouped Transactions by Bill No:", grouped);
-  }, [transactions]);
+    if (pendingTransaction) {
+      filterPending();
+    } else {
+      const grouped = transactions.reduce((acc, tx) => {
+        if (!acc[tx.billno]) acc[tx.billno] = [];
+        acc[tx.billno].push(tx);
+        return acc;
+      }, {});
+      setGroupedTransactions(grouped);
+    }
+  }, [pendingTransaction, transactions]);
 
   // Filtered transactions based on search
   const filteredGrouped = Object.entries(groupedTransactions).reduce(
@@ -248,6 +271,10 @@ function Page() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        <div className="flex justify-end p-2">
+          <button className={`${pendingTransaction? "bg-black text-red-500":" bg-white text-black"} p-2 rounded-xl`} onClick={()=>setPendingTransaction(!pendingTransaction)}>Pending</button>
+        </div>
 
         {/* ---------- TRANSACTIONS SECTION ---------- */}
         <motion.div
